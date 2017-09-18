@@ -1,7 +1,10 @@
 package com.checkin.base;
 
+import android.Manifest;
+import android.app.AlertDialog;
 import android.app.PendingIntent;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.location.Location;
 import android.location.LocationListener;
@@ -10,6 +13,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.Settings;
+import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.util.Log;
@@ -26,9 +30,18 @@ import android.widget.TextView;
 
 import com.checkin.R;
 
-import butterknife.BindView;
+import java.util.List;
 
-public class MainActivity extends AppCompatActivity
+import butterknife.BindView;
+import permissions.dispatcher.NeedsPermission;
+import permissions.dispatcher.OnNeverAskAgain;
+import permissions.dispatcher.OnPermissionDenied;
+import permissions.dispatcher.OnShowRationale;
+import permissions.dispatcher.PermissionRequest;
+import permissions.dispatcher.RuntimePermissions;
+
+@RuntimePermissions
+public class MainActivity extends BaseActivity
         implements NavigationView.OnNavigationItemSelectedListener {
 
     @BindView(R.id.toolbar)
@@ -47,10 +60,14 @@ public class MainActivity extends AppCompatActivity
     private double longitude = 0.0;
 
     private LocationManager locationManager;
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+    public int getInflateLayout() {
+        return R.layout.activity_main;
+    }
+
+    @Override
+    public void initView() {
         setSupportActionBar(toolbar);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -68,24 +85,36 @@ public class MainActivity extends AppCompatActivity
         initGps();
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        // 代理权限处理到自动生成的方法
+        MainActivityPermissionsDispatcher.onRequestPermissionsResult(this, requestCode, grantResults);
+    }
+
+
     private void initGps(){
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            getLocation();
+            MainActivityPermissionsDispatcher.getLocationWithCheck(MainActivity.this);
+//            getLocation();
             //gps已打开
         } else {
-            toggleGPS();
+            MainActivityPermissionsDispatcher.toggleGPSWithCheck(this);
+//            toggleGPS();
             new Handler() {}.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    getLocation();
+                    MainActivityPermissionsDispatcher.getLocationWithCheck(MainActivity.this);
+//                    getLocation();
                 }
             }, 2000);
 
         }
     }
 
-    private void toggleGPS() {
+    @NeedsPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+    public void toggleGPS() {
         Intent gpsIntent = new Intent();
         gpsIntent.setClassName("com.android.settings", "com.android.settings.widget.SettingsAppWidgetProvider");
         gpsIntent.addCategory("android.intent.category.ALTERNATIVE");
@@ -94,26 +123,73 @@ public class MainActivity extends AppCompatActivity
             PendingIntent.getBroadcast(this, 0, gpsIntent, 0).send();
         } catch (PendingIntent.CanceledException e) {
             e.printStackTrace();
-            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1000, 0, locationListener);
-            Location location1 = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            if (location1 != null) {
-                latitude = location1.getLatitude(); // 经度
-                longitude = location1.getLongitude(); // 纬度
+            try {
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1000, 0, locationListener);
+                Location location1 = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+                if (location1 != null) {
+                    latitude = location1.getLatitude(); // 经度
+                    longitude = location1.getLongitude(); // 纬度
+                }
+            }catch (SecurityException e1){
+                e1.printStackTrace();
             }
         }
     }
 
-    private void getLocation() {
-        Location location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-        if (location != null) {
-            latitude = location.getLatitude();
-            longitude = location.getLongitude();
-        } else {
-
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, locationListener);
+    @NeedsPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+    public void getLocation() {
+        try {
+            Location location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            List<String> list = locationManager.getAllProviders();
+            if (location != null) {
+                latitude = location.getLatitude();
+                longitude = location.getLongitude();
+            } else {
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, locationListener);
+            }
+            tv_location.setText("纬度：" + latitude + "\n" + "经度：" + longitude);
+        }catch (SecurityException e1){
+            e1.printStackTrace();
         }
-        tv_location.setText("纬度：" + latitude + "\n" + "经度：" + longitude);
     }
+
+    @OnShowRationale(Manifest.permission.ACCESS_COARSE_LOCATION)
+    void showRationaleForLocation(final PermissionRequest request) {
+        new AlertDialog.Builder(this)
+                .setMessage(R.string.str_tip_premission)
+                .setPositiveButton(R.string.str_tip_allow, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        request.proceed();
+                    }
+                })
+                .setNegativeButton(R.string.str_tip_forbid, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        request.cancel();
+                    }
+                })
+                .show();
+    }
+
+    @OnPermissionDenied(Manifest.permission.ACCESS_COARSE_LOCATION)
+    void showDeniedForLocation() {
+//        Toast.makeText(this, "手动禁止录音权限", Toast.LENGTH_SHORT).show();
+    }
+
+    @OnNeverAskAgain(Manifest.permission.ACCESS_COARSE_LOCATION)
+    void showNeverAskForLocation() {
+        new AlertDialog.Builder(this)
+                .setMessage(R.string.str_tip__manual_premission)
+                .setPositiveButton("设置", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        startActivity(getAppDetailSettingIntent());
+                    }
+                }).show();
+//        Toast.makeText(this, "不要再询问录音权限", Toast.LENGTH_SHORT).show();
+    }
+
 
     LocationListener locationListener = new LocationListener() {
         // Provider的状态在可用、暂时不可用和无服务三个状态直接切换时触发此函数

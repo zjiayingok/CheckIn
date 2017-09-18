@@ -5,4 +5,9 @@
     <string name="navigation_drawer_close">Close navigation drawer</string>
 
     <string name="action_settings">Settings</string>
+
+    <string name="str_tip_premission">定位权限</string>
+    <string name="str_tip__manual_premission">"手动设置定位权限"</string>
+    <string name="str_tip_allow">允许</string>
+    <string name="str_tip_forbid">禁止</string>
 </resources>
