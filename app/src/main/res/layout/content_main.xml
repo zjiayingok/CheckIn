@@ -10,11 +10,15 @@
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
     app:layout_behavior="@string/appbar_scrolling_view_behavior"
-    tools:context="com.checkin.MainActivity"
+    tools:context="com.checkin.base.MainActivity"
     tools:showIn="@layout/app_bar_main">
 
+
     <TextView
+        android:id="@+id/tv_location"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Hello World!" />
+        android:text="经纬度信息："
+        android:textColor="#660000"
+        android:textSize="20sp" />
 </RelativeLayout>
